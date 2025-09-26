@@ -62,8 +62,9 @@ def cut_video_segments(video_path, scene_list, cuts_dir):
         cmd = (
             f'ffmpeg -y -i "{video_path}" '
             f'-ss {start_time:.3f} -to {end_time:.3f} '
-            f'-c copy "{output_path}"'
+            f'-c:v libx264 -crf 23 -preset veryfast -c:a copy "{output_path}"'
         )
+
         os.system(cmd)
 
 def clean_previous_run(output_dir):
