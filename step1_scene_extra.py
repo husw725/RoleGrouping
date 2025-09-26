@@ -49,6 +49,35 @@ def extract_frames(video_path, scene_list, temp_dir):
     cap.release()
     return scene_frames
 
+def cut_video_segments(video_path, scene_list, cuts_dir):
+    """根据 scene_list 切割视频并保存到 cuts_dir 目录"""
+    os.makedirs(cuts_dir, exist_ok=True)
+
+    for i, (start, end) in enumerate(scene_list, 1):
+        start_time = start.get_seconds()
+        end_time = end.get_seconds()
+        output_path = os.path.join(cuts_dir, f"cut({i}).mp4")
+
+        # 使用 ffmpeg 快速切割（要求本机已安装 ffmpeg）
+        cmd = (
+            f'ffmpeg -y -i "{video_path}" '
+            f'-ss {start_time:.3f} -to {end_time:.3f} '
+            f'-c copy "{output_path}"'
+        )
+        os.system(cmd)
+
+def clean_previous_run(output_dir):
+    """
+    在新执行前清理上一次的 selected 和 temp 目录
+    """
+    selected_dir = os.path.join(output_dir, "selected")
+    temp_dir = os.path.join(output_dir, "temp")
+
+    for folder in [selected_dir, temp_dir]:
+        if os.path.exists(folder):
+            shutil.rmtree(folder)
+            print(f"已清理旧目录: {folder}")
+
 def run_step1():
     st.header("Step 1 - 镜头抽帧")
 
@@ -60,6 +89,9 @@ def run_step1():
         if not os.path.exists(video_path):
             st.error("视频文件不存在")
         else:
+            # 在执行前先清理上一次数据
+            clean_previous_run(output_dir)
+
             scenes = detect_scenes(video_path, threshold)
             st.success(f"检测到 {len(scenes)} 个镜头！")
 
@@ -68,6 +100,8 @@ def run_step1():
             st.session_state["scene_frames"] = scene_frames
             st.session_state["temp_dir"] = temp_dir
             st.session_state["output_dir"] = output_dir
+            st.session_state["scenes"] = scenes
+            st.session_state["video_path"] = video_path
 
     if "scene_frames" in st.session_state:
         selected_images_per_scene = []
@@ -86,11 +120,13 @@ def run_step1():
                     if checked:
                         selected_images_per_scene.append((scene_id, img))
 
-        if st.button("保存选择结果"):
-            save_dir = os.path.join(st.session_state["output_dir"], "selected")
+        if st.button("保存选择结果并切割视频"):
+            base_dir = st.session_state["output_dir"]
+            save_dir = os.path.join(base_dir, "selected")
+            cuts_dir = os.path.join(base_dir, "cuts")  # 视频保存到 cuts 子目录
             os.makedirs(save_dir, exist_ok=True)
 
-            # 按 cut(镜头.第几张) 命名
+            # 保存选帧 cut({scene_id}).jpg
             scene_counter = defaultdict(int)
             for scene_id, img_path in selected_images_per_scene:
                 scene_counter[scene_id] += 1
@@ -102,10 +138,12 @@ def run_step1():
                 save_path = os.path.join(save_dir, base_name)
                 shutil.copy(img_path, save_path)
 
-            # 删除临时帧
-            temp_dir = st.session_state.get("temp_dir")
-            if temp_dir and os.path.exists(temp_dir):
-                shutil.rmtree(temp_dir)
+            # 切割视频
+            cut_video_segments(
+                st.session_state["video_path"],
+                st.session_state["scenes"],
+                cuts_dir
+            )
 
-            st.success(f"保存完成！结果保存在: {save_dir}")
+            st.success(f"保存完成！\n图片在: {save_dir}\n视频在: {cuts_dir}")
             st.session_state["last_saved_dir"] = save_dir
