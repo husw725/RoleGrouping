@@ -1,0 +1,6 @@
+streamlit
+insightface
+onnxruntime
+numpy==1.24.4
+opencv-python
+scenedetect[opencv]
