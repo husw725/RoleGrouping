@@ -2,13 +2,21 @@
 import os
 import streamlit as st
 
+
+from utils import CacheManager
+
+cache = CacheManager("step2_cache.pkl")  # 每个页面可以使用不同的文件名
+
 def run_step3():
     st.header("Step 3 - 提示词查验")
 
     # 输入 txt 文件目录
-    txt_folder = st.text_input("📂 请输入包含 txt 文件的文件夹路径:")
+    txt_folder = st.text_input("📂 请输入包含 txt 文件的文件夹路径:", value=cache.get("txt_folder", ""))
     # 输入视频文件目录
-    video_folder = st.text_input("🎬 请输入视频文件所在文件夹路径:")
+    video_folder = st.text_input("🎬 请输入视频文件所在文件夹路径:", value=cache.get("video_folder", ""))
+
+    cache.set("txt_folder", txt_folder)
+    cache.set("video_folder", video_folder)
 
     if not txt_folder:
         st.info("请输入 txt 文件夹路径以加载文件内容。")

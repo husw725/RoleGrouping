@@ -9,6 +9,10 @@ from utils.file_utils import get_role_label
 SIM_THRESHOLD = 0.6
 IMAGES_PER_ROW = 4
 
+from utils import CacheManager
+
+cache = CacheManager("step2_cache.pkl")  # 每个页面可以使用不同的文件名
+
 def group_roles(input_dir, output_dir, det_threshold=0.75):
     role_features = {}
     role_images = defaultdict(list)
@@ -52,10 +56,13 @@ def group_roles(input_dir, output_dir, det_threshold=0.75):
 
 def run_step2():
     st.header("Step 2 - 人物分组")
+    
+    # default_input = st.session_state.get("last_saved_dir", "output/frames/selected")
+    input_dir = st.text_input("输入目录:", cache.get("input_dir", ""))
+    output_dir = st.text_input("输出目录:", cache.get("output_dir", ""))
 
-    default_input = st.session_state.get("last_saved_dir", "output/frames/selected")
-    input_dir = st.text_input("输入目录:", default_input)
-    output_dir = st.text_input("输出目录:", "step2_outputs")
+    cache.set("input_dir", input_dir)
+    cache.set("output_dir", output_dir)
 
     det_threshold = st.slider("人脸检测阈值", 0.0, 1.0, 0.75, 0.05)
 
