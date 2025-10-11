@@ -1,4 +1,5 @@
 import streamlit as st
+from step0_scene_extra import run_step0
 from step1_frame_check import run_step1
 from step2_roles import run_step2
 from step3_prompt_check import run_step3
@@ -31,7 +32,7 @@ def main():
 
     step = st.sidebar.radio(
         "选择步骤",
-        ["Step 1 - 关键帧选取", "Step 2 - 人物分组", "Step 3 - 提示词查验"],
+        ["Step0 - 分割视频镜头", "Step 1 - 关键帧选取", "Step 2 - 人物分组", "Step 3 - 提示词查验"],
         index=0,
         key="step_radio",
         label_visibility="visible"
@@ -41,7 +42,9 @@ def main():
     # st.sidebar.info("💡 请按顺序完成每一步，点击后内容将自动展示在主页面。")
 
     # 步骤内容显示
-    if step == "Step 1 - 关键帧选取":
+    if step == "Step0 - 分割视频镜头":
+        run_step0()
+    elif step == "Step 1 - 关键帧选取":
         # st.markdown("### Step 1 - 关键帧选取")
         run_step1()
     elif step == "Step 2 - 人物分组":
