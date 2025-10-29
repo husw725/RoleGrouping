@@ -12,6 +12,20 @@ cd "$SCRIPT_DIR"
 echo "Pulling latest code..."
 git pull
 
+# ==== Pre-check: Verify venv capability ====
+echo "Checking system dependencies..."
+if ! python3 -m venv --help >/dev/null 2>&1; then
+    echo "Python virtual environment package not found. Installing prerequisites..."
+    PYTHON_VERSION=$(python3 -c "import sys; print(f'python3.{sys.version_info.minor}-venv')")
+    
+    echo "Installing required system package: $PYTHON_VERSION"
+    sudo apt-get update
+    sudo apt-get install -y "$PYTHON_VERSION"
+    echo "------------------------------"
+    echo "System packages updated. Please try running the script again."
+    exit 1
+fi
+
 # ==== Step 1: Check if venv exists ====
 if [ ! -d ".venv" ]; then
     echo "Creating virtual environment..."
