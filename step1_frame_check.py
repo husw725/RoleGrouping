@@ -28,18 +28,18 @@ def extract_frames(video_path, num_frames=4):
 
 # ----------------- 主函数 -----------------
 def run_step1():
-    st.title("Step 1 - 关键帧选取")
+    st.title("Step 1 - Key Frame Selection")
 
     # 读取上次目
-    input_dir = st.text_input("输入目录", value=cache.get("input_dir", ""))
-    output_dir = st.text_input("输出目录", value=cache.get("output_dir", ""))
+    input_dir = st.text_input("Input Directory", value=cache.get("input_dir", ""))
+    output_dir = st.text_input("Output Directory", value=cache.get("output_dir", ""))
 
     cache.set("input_dir", input_dir)
     cache.set("output_dir", output_dir)
 
     if not input_dir or not output_dir:
-        st.warning("请设置输入和输出目录")
-        return
+        st.warning("Please set input and output directories")
+        return  
 
     input_path = Path(input_dir)
     output_path = Path(output_dir)
@@ -47,10 +47,9 @@ def run_step1():
 
     video_files = list(input_path.glob("*.mp4")) + list(input_path.glob("*.mov"))
     if not video_files:
-        st.info("输入目录没有视频文件")
-        return
-
-    st.write(f"共发现 {len(video_files)} 个视频")
+        st.info("Input directory does not contain any video files")
+        return     
+    st.write(f"Found {len(video_files)} video files")
 
     # 保存选中的帧
     selected_frames = {}
@@ -64,11 +63,11 @@ def run_step1():
             with cols[i]:
                 st.image(frame_img, width='stretch')
                 default_checked = True if i == 0 else False
-                checked = st.checkbox(f"选中", key=f"{video_file.name}_{i}", value=default_checked)
+                checked = st.checkbox(f"Select", key=f"{video_file.name}_{i}", value=default_checked)
                 checkboxes.append((frame_idx, frame_img, checked))
         selected_frames[video_file] = checkboxes
-
-    if st.button("保存选中帧"):
+ 
+    if st.button("Save Selected Frames"):
         for video_file, frame_list in selected_frames.items():
             base_name = video_file.stem
             count = 0  # 用于顺序编号
@@ -81,4 +80,4 @@ def run_step1():
                         filename = f"{base_name}.{count}.jpg"
                     save_path = output_path / filename
                     cv2.imwrite(str(save_path), cv2.cvtColor(frame_img, cv2.COLOR_RGB2BGR))
-        st.success("已保存选中帧！")
+        st.success("Selected frames saved!")

@@ -11,7 +11,7 @@ IMAGES_PER_ROW = 4
 
 from utils import CacheManager
 
-cache = CacheManager("step2_cache.pkl")  # 每个页面可以使用不同的文件名
+cache = CacheManager("step2_cache.pkl")  # Each page uses separate cache file
 
 def group_roles(input_dir, output_dir, det_threshold=0.75):
     role_features = {}
@@ -55,35 +55,34 @@ def group_roles(input_dir, output_dir, det_threshold=0.75):
     return role_images
 
 def run_step2():
-    st.header("Step 2 - 人物分组")
+    st.header("Step 2 - Character Grouping")
     
-    # default_input = st.session_state.get("last_saved_dir", "output/frames/selected")
-    input_dir = st.text_input("输入目录:", cache.get("input_dir", ""))
-    output_dir = st.text_input("输出目录:", cache.get("output_dir", ""))
+    input_dir = st.text_input("Input Directory:", cache.get("input_dir", ""))
+    output_dir = st.text_input("Output Directory:", cache.get("output_dir", ""))
 
     cache.set("input_dir", input_dir)
     cache.set("output_dir", output_dir)
 
-    det_threshold = st.slider("人脸检测阈值", 0.0, 1.0, 0.75, 0.05)
+    det_threshold = st.slider("Face Detection Threshold", 0.0, 1.0, 0.75, 0.05)
 
     if "role_images" not in st.session_state:
         st.session_state.role_images = {}
 
-    if st.button("开始分组"):
+    if st.button("Start Grouping"):
         if not os.path.exists(input_dir):
-            st.error("输入目录不存在")
+            st.error("Input directory does not exist")
         else:
             st.session_state.role_images = group_roles(input_dir, output_dir, det_threshold)
-            st.success("分组完成！")
+            st.success("Grouping completed!")
 
     roles_to_delete = []
     for role, images in st.session_state.role_images.items():
         container = st.container()
         with container:
             col1, col2 = st.columns([8, 1])
-            col1.subheader(f"角色 {role} - {len(images)} 张图片")
+            col1.subheader(f"Character {role} - {len(images)} images")
             role_dir = os.path.join(output_dir, f"role_{role}")
-            if col2.button("删除", key=f"delete_{role}"):
+            if col2.button("Delete", key=f"delete_{role}"):
                 if os.path.exists(role_dir):
                     shutil.rmtree(role_dir)
                 roles_to_delete.append(role)

@@ -125,22 +125,23 @@ def clean_previous_run(output_dir):
 # 主流程 UI
 # ======================================================
 def run_step0():
-    st.header("Step 1 - 智能镜头抽帧 ✨")
+    # change lan to en st.header("Step 0 - 智能镜头抽帧 ✨")
+    st.header("Step 0 - Smart Scene Extraction ✨")
 
-    video_path = st.text_input("输入视频路径", "1.mp4")
-    output_dir = st.text_input("输出目录", "output/frames")
-    threshold = st.slider("镜头检测阈值", 20.0, 50.0, 35.0)
-    mode = st.radio("检测模式", ["basic", "smart"], index=1, horizontal=True)
+    video_path = st.text_input("Input Video Path", "1.mp4")
+    output_dir = st.text_input("Output Directory", "output/frames")
+    threshold = st.slider("Scene Detection Threshold", 20.0, 50.0, 35.0)
+    mode = st.radio("Detection Mode", ["basic", "smart"], index=1, horizontal=True)
 
-    if st.button("开始检测并抽帧"):
+    if st.button("Start Scene Detection and Frame Extraction"):
         if not os.path.exists(video_path):
-            st.error("视频文件不存在")
+            st.error("Video file does not exist")
         else:
             clean_previous_run(output_dir)
 
-            st.info("🔍 正在检测镜头，请稍候...")
+            st.info("Detecting scenes, please wait...")
             scenes = detect_scenes_advanced(video_path, threshold, mode)
-            st.success(f"检测到 {len(scenes)} 个镜头！")
+            st.success(f"Detected {len(scenes)} scenes!")
 
             temp_dir = os.path.join(output_dir, "temp")
             scene_frames = extract_frames(video_path, scenes, temp_dir)
@@ -155,15 +156,15 @@ def run_step0():
     if "scene_frames" in st.session_state:
         selected_images = []
         for scene_id, images in st.session_state["scene_frames"].items():
-            st.markdown(f"### 镜头 {scene_id}")
+            st.markdown(f"### Scene {scene_id}")
             cols = st.columns(len(images))
             for j, img in enumerate(images):
                 with cols[j]:
                     st.image(img, caption=os.path.basename(img), use_container_width=True)
-                    if st.checkbox(f"选 {os.path.basename(img)}", key=f"scene_{scene_id}_{j}", value=(j == 0)):
+                    if st.checkbox(f"Select {os.path.basename(img)}", key=f"scene_{scene_id}_{j}", value=(j == 0)):
                         selected_images.append((scene_id, img))
 
-        if st.button("保存选择结果并切割视频"):
+        if st.button("Save Selection and Cut Video"):
             base_dir = st.session_state["output_dir"]
             save_dir = os.path.join(base_dir, "selected")
             cuts_dir = os.path.join(base_dir, "cuts")
@@ -177,4 +178,4 @@ def run_step0():
                 shutil.copy(img_path, os.path.join(save_dir, name))
 
             cut_video_segments(st.session_state["video_path"], st.session_state["scenes"], cuts_dir)
-            st.success(f"✅ 保存完成！\n图片: {save_dir}\n视频: {cuts_dir}")
+            st.success(f"✅ Saved Success!\n Pictures: {save_dir}\nCut Videos: {cuts_dir}")
