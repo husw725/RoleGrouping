@@ -1,58 +1,90 @@
 import os
 import shutil
+import numpy as np
 import streamlit as st
 from collections import defaultdict
 from utils.face_utils import extract_feature, cosine_sim
 from utils.ui_utils import display_images
 from utils.file_utils import get_role_label
 
-SIM_THRESHOLD = 0.6
+# SIM_THRESHOLD = 0.6
+DET_THRESHOLD = 0.65
 IMAGES_PER_ROW = 4
 
 from utils import CacheManager
 
 cache = CacheManager("step2_cache.pkl")  # Each page uses separate cache file
 
-def group_roles(input_dir, output_dir, det_threshold=0.75):
-    role_features = {}
-    role_images = defaultdict(list)
+def normalize(v):
+    return v / (np.linalg.norm(v) + 1e-6)
+
+
+def group_roles(input_dir, output_dir, sim_threshold=0.55):
+    # SIM_THRESHOLD = det_threshold 
+    role_centroids = {}                      # 每个角色当前中心向量
+    role_feature_list = defaultdict(list)    # 多样本特征缓存
+    role_images = defaultdict(set)           # 用 set 防止重复添加
     next_role_id = 0
 
-    for img_name in os.listdir(input_dir):
+    os.makedirs(output_dir, exist_ok=True)
+
+    file_list = [
+        f for f in os.listdir(input_dir)
+        if f.lower().endswith((".jpg", ".jpeg", ".png"))
+    ]
+
+    for img_name in file_list:
         img_path = os.path.join(input_dir, img_name)
-        if not img_path.lower().endswith((".jpg", ".png", ".jpeg")):
+
+        features = extract_feature(img_path, det_threshold=DET_THRESHOLD)
+
+        if not features:
+            role_images["other"].add(img_name)
             continue
 
-        features = extract_feature(img_path, det_threshold=det_threshold)
-        if len(features) == 0:
-            role_images["other"].append(img_name)
-        else:
-            for feat in features:
-                matched_role = None
-                best_sim = 0
-                for role, ref_feat in role_features.items():
-                    sim = cosine_sim(feat, ref_feat)
-                    if sim > best_sim:
-                        best_sim = sim
-                        matched_role = role
-                if matched_role and best_sim >= SIM_THRESHOLD:
-                    role_images[matched_role].append(img_name)
-                else:
-                    new_role = get_role_label(next_role_id)
-                    role_features[new_role] = feat
-                    role_images[new_role].append(img_name)
-                    next_role_id += 1
+        for feat in features:
+            feat = normalize(np.array(feat))
 
-    os.makedirs(output_dir, exist_ok=True)
+            matched_role = None
+            best_sim = -1
+
+            # 与所有角色中心比较
+            for role, centroid in role_centroids.items():
+                sim = cosine_sim(feat, centroid)
+                if sim > best_sim:
+                    best_sim = sim
+                    matched_role = role
+
+            # 阈值外 → 新建角色
+            if matched_role is None or best_sim < sim_threshold:
+                new_role = get_role_label(next_role_id)
+                next_role_id += 1
+
+                role_feature_list[new_role].append(feat)
+                role_centroids[new_role] = feat
+                role_images[new_role].add(img_name)
+                continue
+
+            # 匹配到角色 → 更新特征中心
+            role_feature_list[matched_role].append(feat)
+
+            new_centroid = np.mean(role_feature_list[matched_role], axis=0)
+            new_centroid = normalize(new_centroid)
+            role_centroids[matched_role] = new_centroid
+
+            role_images[matched_role].add(img_name)
+
+    # 保存图片（保证与你原逻辑一致）
     for role, images in role_images.items():
         role_dir = os.path.join(output_dir, f"role_{role}")
         os.makedirs(role_dir, exist_ok=True)
-        for img_name in set(images):
+        for img_name in images:
             src = os.path.join(input_dir, img_name)
             dst = os.path.join(role_dir, img_name)
             if not os.path.exists(dst):
                 shutil.copy(src, dst)
-    return role_images
+
+    return {k: list(v) for k, v in role_images.items()}
 
 def run_step2():
     st.header("Step 2 - Character Grouping")
@@ -63,7 +95,7 @@ def run_step2():
     cache.set("input_dir", input_dir)
     cache.set("output_dir", output_dir)
 
-    det_threshold = st.slider("Face Detection Threshold", 0.0, 1.0, 0.75, 0.05)
+    sim_threshold = st.slider("Face Detection Threshold", 0.0, 1.0, 0.55, 0.05)
 
     if "role_images" not in st.session_state:
         st.session_state.role_images = {}
@@ -72,7 +104,7 @@ def run_step2():
         if not os.path.exists(input_dir):
             st.error("Input directory does not exist")
         else:
-            st.session_state.role_images = group_roles(input_dir, output_dir, det_threshold)
+            st.session_state.role_images = group_roles(input_dir, output_dir, sim_threshold)
             st.success("Grouping completed!")
 
     roles_to_delete = []
