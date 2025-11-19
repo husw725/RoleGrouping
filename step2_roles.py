@@ -6,8 +6,8 @@ from collections import defaultdict
 from utils.face_utils import extract_feature, cosine_sim
 from utils.ui_utils import display_images
 from utils.file_utils import get_role_label
+import cv2
 
-# SIM_THRESHOLD = 0.6
 DET_THRESHOLD = 0.65
 IMAGES_PER_ROW = 4
 
@@ -15,15 +15,29 @@ from utils import CacheManager
 
 cache = CacheManager("step2_cache.pkl")  # Each page uses separate cache file
 
+
 def normalize(v):
     return v / (np.linalg.norm(v) + 1e-6)
 
 
+def compute_clarity(img_path):
+    """返回 0~1 之间，数值越大图越清晰"""
+    img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+    if img is None:
+        return 0.3  # 防止异常情况
+
+    lap = cv2.Laplacian(img, cv2.CV_64F)
+    score = lap.var()
+
+    # 1500 左右属于清晰人脸
+    score = min(score / 1500.0, 1.0)
+    return max(score, 0.05)
+
+
 def group_roles(input_dir, output_dir, sim_threshold=0.55):
-    # SIM_THRESHOLD = det_threshold 
-    role_centroids = {}                      # 每个角色当前中心向量
-    role_feature_list = defaultdict(list)    # 多样本特征缓存
-    role_images = defaultdict(set)           # 用 set 防止重复添加
+    role_centroids = {}                        # 每个角色聚类中心
+    role_feature_list = defaultdict(list)      # (feat, weight)
+    role_images = defaultdict(set)             # 防重复
     next_role_id = 0
 
     os.makedirs(output_dir, exist_ok=True)
@@ -42,6 +56,8 @@ def group_roles(input_dir, output_dir, sim_threshold=0.55):
             role_images["other"].add(img_name)
             continue
 
+        clarity = compute_clarity(img_path)
+
         for feat in features:
             feat = normalize(np.array(feat))
 
@@ -55,29 +71,34 @@ def group_roles(input_dir, output_dir, sim_threshold=0.55):
                     best_sim = sim
                     matched_role = role
 
-            # 阈值外 → 新建角色
+            # 低于阈值 → 新角色
             if matched_role is None or best_sim < sim_threshold:
                 new_role = get_role_label(next_role_id)
                 next_role_id += 1
 
-                role_feature_list[new_role].append(feat)
+                role_feature_list[new_role].append((feat, clarity))
                 role_centroids[new_role] = feat
                 role_images[new_role].add(img_name)
                 continue
 
-            # 匹配到角色 → 更新特征中心
-            role_feature_list[matched_role].append(feat)
+            # 匹配到角色 → 按权重更新中心
+            role_feature_list[matched_role].append((feat, clarity))
 
-            new_centroid = np.mean(role_feature_list[matched_role], axis=0)
-            new_centroid = normalize(new_centroid)
-            role_centroids[matched_role] = new_centroid
+            feats = np.array([f for f, w in role_feature_list[matched_role]])
+            weights = np.array([w for f, w in role_feature_list[matched_role]])
 
+            # 计算加权中心
+            weighted_centroid = np.average(feats, axis=0, weights=weights)
+            weighted_centroid = normalize(weighted_centroid)
+
+            role_centroids[matched_role] = weighted_centroid
             role_images[matched_role].add(img_name)
 
-    # 保存图片（保证与你原逻辑一致）
+    # 输出结果与原逻辑一致
     for role, images in role_images.items():
         role_dir = os.path.join(output_dir, f"role_{role}")
         os.makedirs(role_dir, exist_ok=True)
+
         for img_name in images:
             src = os.path.join(input_dir, img_name)
             dst = os.path.join(role_dir, img_name)
@@ -86,16 +107,17 @@ def group_roles(input_dir, output_dir, sim_threshold=0.55):
 
     return {k: list(v) for k, v in role_images.items()}
 
+
 def run_step2():
     st.header("Step 2 - Character Grouping")
-    
+
     input_dir = st.text_input("Input Directory:", cache.get("input_dir", ""))
     output_dir = st.text_input("Output Directory:", cache.get("output_dir", ""))
 
     cache.set("input_dir", input_dir)
     cache.set("output_dir", output_dir)
 
-    sim_threshold = st.slider("Face Detection Threshold", 0.0, 1.0, 0.55, 0.05)
+    sim_threshold = st.slider("Sim Threshold", 0.0, 1.0, 0.55, 0.05)
 
     if "role_images" not in st.session_state:
         st.session_state.role_images = {}
@@ -114,12 +136,14 @@ def run_step2():
             col1, col2 = st.columns([8, 1])
             col1.subheader(f"Character {role} - {len(images)} images")
             role_dir = os.path.join(output_dir, f"role_{role}")
+
             if col2.button("Delete", key=f"delete_{role}"):
                 if os.path.exists(role_dir):
                     shutil.rmtree(role_dir)
                 roles_to_delete.append(role)
                 container.empty()
                 continue
+
             display_images(images, input_dir, container, IMAGES_PER_ROW)
 
     for role in roles_to_delete:
