@@ -7,7 +7,7 @@ from step3_prompt_check import run_step3
 def main():
     # Page configuration
     st.set_page_config(
-        page_title="Character Grouping Tool(v251119)",
+        page_title="Character Grouping Tool(v251126)",
         layout="wide",
         page_icon="🧩",
         initial_sidebar_state="expanded"
